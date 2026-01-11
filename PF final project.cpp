@@ -148,3 +148,158 @@ LRESULT CALLBACK RegWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 newStudent.phone = phone;
                 newStudent.email = email;
                 newStudent.matricMarks = atoi(matricStr);
+newStudent.interMarks = atoi(interStr);
+                
+                int idx = SendMessage(hComboProgram, CB_GETCURSEL, 0, 0);
+                char program[100];
+                SendMessage(hComboProgram, CB_GETLBTEXT, idx, (LPARAM)program);
+                newStudent.program = program;
+                
+                float matricPercent = (newStudent.matricMarks / 1100.0) * 100;
+                float interPercent = (newStudent.interMarks / 1200.0) * 100;
+                newStudent.merit = (interPercent * 0.70) + (matricPercent * 0.30);
+                newStudent.feesPaid = (SendMessage(hCheckFee, BM_GETCHECK, 0, 0) == BST_CHECKED);
+                newStudent.selected = (newStudent.feesPaid && newStudent.merit >= 80);
+                newStudent.applicationID = generateApplicationID();
+                newStudent.dateApplied = getCurrentDate();
+                
+                students[totalStudents++] = newStudent;
+                saveToFile();
+                
+                char msg[600];
+                sprintf(msg, "APPLICATION SUBMITTED!\n\nID: %s\nName: %s\nProgram: %s\nMerit: %.2f%%\n\nStatus: %s",
+                        newStudent.applicationID.c_str(), newStudent.fullName.c_str(), newStudent.program.c_str(),
+                        newStudent.merit, newStudent.selected ? "SELECTED" : "NOT SELECTED");
+                MessageBox(hwnd, msg, "Success", MB_OK | MB_ICONINFORMATION);
+                DestroyWindow(hwnd);
+            } else if (LOWORD(wParam) == 2) {
+                DestroyWindow(hwnd);
+            }
+            break;
+        case WM_CLOSE:
+            DestroyWindow(hwnd);
+            break;
+        default:
+            return DefWindowProc(hwnd, msg, wParam, lParam);
+    }
+    return 0;
+}
+
+LRESULT CALLBACK AdminWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    static HWND hListBox;
+    switch (msg) {
+        case WM_CREATE: {
+            CreateWindow("STATIC", "ADMIN PANEL", WS_VISIBLE | WS_CHILD | SS_CENTER, 10, 10, 760, 25, hwnd, NULL, hInst, NULL);
+            hListBox = CreateWindow("LISTBOX", "", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_VSCROLL, 10, 45, 760, 400, hwnd, NULL, hInst, NULL);
+            for (int i = 0; i < totalStudents; i++) {
+                char item[400];
+                sprintf(item, "[%s] %s | %s | Merit: %.2f%% | %s",
+                       students[i].applicationID.c_str(), students[i].fullName.c_str(), students[i].program.c_str(),
+                       students[i].merit, students[i].selected ? "SELECTED" : "NOT SELECTED");
+                SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM)item);
+            }
+            CreateWindow("BUTTON", "Statistics", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 50, 460, 150, 35, hwnd, (HMENU)2, hInst, NULL);
+            CreateWindow("BUTTON", "Export CSV", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 220, 460, 150, 35, hwnd, (HMENU)3, hInst, NULL);
+            CreateWindow("BUTTON", "Close", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 580, 460, 150, 35, hwnd, (HMENU)4, hInst, NULL);
+            break;
+        }
+        case WM_COMMAND:
+            if (LOWORD(wParam) == 2) {
+                int selectedCount = 0;
+                float avgMerit = 0;
+                for (int i = 0; i < totalStudents; i++) {
+                    if (students[i].selected) selectedCount++;
+                    avgMerit += students[i].merit;
+                }
+                if (totalStudents > 0) avgMerit /= totalStudents;
+                char stats[400];
+                sprintf(stats, "Total: %d\nSelected: %d\nRejected: %d\nAvg Merit: %.2f%%",
+                        totalStudents, selectedCount, totalStudents - selectedCount, avgMerit);
+                MessageBox(hwnd, stats, "Statistics", MB_OK);
+            } else if (LOWORD(wParam) == 3) {
+                ofstream csvFile("admission_data.csv");
+                csvFile << "ID,Name,Program,Merit,Status\n";
+                for (int i = 0; i < totalStudents; i++) {
+                    csvFile << students[i].applicationID << "," << students[i].fullName << ","
+                           << students[i].program << "," << students[i].merit << ","
+                           << (students[i].selected ? "Selected" : "Not Selected") << "\n";
+                }
+                csvFile.close();
+                MessageBox(hwnd, "Exported to admission_data.csv", "Success", MB_OK);
+            } else if (LOWORD(wParam) == 4) {
+                DestroyWindow(hwnd);
+            }
+            break;
+        case WM_CLOSE:
+            DestroyWindow(hwnd);
+            break;
+        default:
+            return DefWindowProc(hwnd, msg, wParam, lParam);
+    }
+    return 0;
+}
+
+LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    switch (msg) {
+        case WM_CREATE: {
+            CreateWindow("STATIC", "INSTITUTE OF SPACE TECHNOLOGY", WS_VISIBLE | WS_CHILD | SS_CENTER, 50, 30, 500, 30, hwnd, NULL, hInst, NULL);
+            CreateWindow("STATIC", "Admission Portal v2.0", WS_VISIBLE | WS_CHILD | SS_CENTER, 50, 65, 500, 25, hwnd, NULL, hInst, NULL);
+            CreateWindow("BUTTON", "Student Registration", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 180, 140, 240, 45, hwnd, (HMENU)101, hInst, NULL);
+            CreateWindow("BUTTON", "Admin Panel", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 180, 200, 240, 45, hwnd, (HMENU)102, hInst, NULL);
+            CreateWindow("BUTTON", "About", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 180, 260, 240, 45, hwnd, (HMENU)103, hInst, NULL);
+            CreateWindow("BUTTON", "Exit", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 180, 320, 240, 45, hwnd, (HMENU)104, hInst, NULL);
+            break;
+        }
+        case WM_COMMAND:
+            if (LOWORD(wParam) == 101) {
+                WNDCLASS wc = {0};
+                wc.lpfnWndProc = RegWndProc;
+                wc.hInstance = hInst;
+                wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+                wc.lpszClassName = "RegClass";
+                RegisterClass(&wc);
+                CreateWindow("RegClass", "Registration", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_VISIBLE, 100, 100, 600, 500, NULL, NULL, hInst, NULL);
+            } else if (LOWORD(wParam) == 102) {
+                WNDCLASS wc = {0};
+                wc.lpfnWndProc = AdminWndProc;
+                wc.hInstance = hInst;
+                wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+                wc.lpszClassName = "AdminClass";
+                RegisterClass(&wc);
+                CreateWindow("AdminClass", "Admin", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_VISIBLE, 50, 50, 800, 560, NULL, NULL, hInst, NULL);
+            } else if (LOWORD(wParam) == 103) {
+                MessageBox(hwnd, "IST Admission Portal v2.0\n\nFeatures:\n- Student Registration\n- Merit Calculation\n- Admin Panel\n- CSV Export", "About", MB_OK);
+            } else if (LOWORD(wParam) == 104) {
+                PostQuitMessage(0);
+            }
+            break;
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            break;
+        default:
+            return DefWindowProc(hwnd, msg, wParam, lParam);
+    }
+    return 0;
+}
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+    hInst = hInstance;
+    loadFromFile();
+    WNDCLASS wc = {0};
+    wc.lpfnWndProc = WndProc;
+    wc.hInstance = hInstance;
+    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    wc.lpszClassName = "ISTClass";
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    RegisterClass(&wc);
+    HWND hwnd = CreateWindow("ISTClass", "IST Admission Portal", WS_OVERLAPPEDWINDOW & ~WS_MAXIMIZEBOX & ~WS_THICKFRAME,
+                            CW_USEDEFAULT, CW_USEDEFAULT, 600, 450, NULL, NULL, hInstance, NULL);
+    ShowWindow(hwnd, nCmdShow);
+    UpdateWindow(hwnd);
+    MSG msg;
+    while (GetMessage(&msg, NULL, 0, 0)) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+    return msg.wParam;
+}
